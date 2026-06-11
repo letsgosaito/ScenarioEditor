@@ -30,7 +30,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .dot{width:7px;height:7px;border-radius:50%;background:#aaa;flex-shrink:0}
 .dot.ok{background:#2d9a3d}.dot.err{background:#e05030}.dot.sync{background:#f0a030;animation:blink .6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.hint{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:9px;color:#1e3a28;background:rgba(232,239,233,.95);padding:2px 9px;border-radius:16px;border:1px solid #2d5a3d44;white-space:nowrap;pointer-events:none;font-weight:500}
+.hint{position:absolute;bottom:6px;left:8px;transform:none;font-size:9px;color:#1e3a28;background:rgba(232,239,233,.95);padding:2px 9px;border-radius:16px;border:1px solid #2d5a3d44;pointer-events:none;font-weight:500;max-width:calc(100% - 16px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* 線スタイルドロップダウン */
 .ls-wrap{position:relative;display:flex;align-items:center}
@@ -124,8 +124,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   .ls-btn{height:28px;padding:3px 8px}
   .zw{bottom:330px}
   .zm-b{width:32px;height:32px;font-size:14px}
-  .hint{bottom:328px;font-size:8px}
+  .hint{bottom:328px;font-size:8px;left:4px;transform:none;right:auto}
   #back-btn{top:auto;bottom:340px;left:6px}
+  #fv-sb{width:100%;position:absolute;bottom:0;left:0;height:300px;border-left:none;border-top:1.5px solid #2d5a3d;z-index:300}
+  #fv-sb.col{width:100%;height:0;opacity:0;border-top:none}
+  #fv-tog{top:auto !important;bottom:300px !important;right:8px;transform:none !important;border-radius:5px 5px 0 0;border-bottom:none;border-right:1.5px solid #2d5a3d;width:40px;height:16px}
 }
 </style>
 </head>
@@ -133,8 +136,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 <div id="app">
 
 <!-- ===== フォルダ一覧ビュー ===== -->
-<div id="folder-view">
-  <div id="fv-canvas-wrap">
+<div id="folder-view" style="display:flex;flex-direction:row;inset:0;position:absolute">
+  <div id="fv-canvas-wrap" style="flex:1;position:relative;overflow:hidden">
     <canvas class="grid-cvs" id="fv-gcvs"></canvas>
     <div class="tb" id="fv-tb">
       <div class="tb-b" id="fv-add-folder" role="button">📁＋フォルダ</div>
@@ -173,16 +176,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     </svg>
     <div id="fv-brd" style="position:absolute;top:0;left:0;z-index:2;transform-origin:0 0"></div>
     <div class="hint">背景ドラッグ：移動 ／ ピンチ or Ctrl+スクロール：ズーム ／ フォルダをダブルクリックで開く</div>
-  </div>
-  <div class="dlg" id="fv-dlg">
-    <div class="dlg-box">
-      <p>すべての線を削除しますか？</p>
-      <div class="dlg-btns">
-        <div class="dlg-btn dlg-no" id="fv-dlg-no" role="button">キャンセル</div>
-        <div class="dlg-btn dlg-ok" id="fv-dlg-ok" role="button">削除する</div>
+    <div class="dlg" id="fv-dlg">
+      <div class="dlg-box">
+        <p>すべての線を削除しますか？</p>
+        <div class="dlg-btns">
+          <div class="dlg-btn dlg-no" id="fv-dlg-no" role="button">キャンセル</div>
+          <div class="dlg-btn dlg-ok" id="fv-dlg-ok" role="button">削除する</div>
+        </div>
       </div>
     </div>
   </div>
+  <!-- フォルダ編集サイドバー -->
+  <div id="fv-sb" style="width:40%;flex-shrink:0;background:#f9f7f1;border-left:1.5px solid #2d5a3d;display:flex;flex-direction:column;z-index:200;transition:width .2s,opacity .18s;overflow:hidden">
+    <div id="fv-sbh" style="padding:8px 12px 6px;border-bottom:1px solid #2d5a3d44;font-size:11px;color:#1e3a28;font-weight:700;flex-shrink:0">📁 フォルダエディタ</div>
+    <div id="fv-nos" style="padding:28px 12px;text-align:center;font-size:11px;color:#4a7a55;line-height:1.9;flex-shrink:0">フォルダをクリックして<br>編集を始めましょう</div>
+    <div id="fv-edf" style="flex:1;display:none;flex-direction:column;overflow:hidden;min-height:0">
+      <span class="fl">フォルダ名</span>
+      <input id="fv-ft" type="text" placeholder="例：第一章" style="margin:0 12px;border:1px solid #2d5a3d66;border-radius:5px;padding:5px 7px;font-size:12px;background:#fff;color:#1e3a28;font-family:inherit;outline:none;flex-shrink:0;display:block;width:calc(100% - 24px)">
+      <span class="fl" style="padding-top:6px">メモ</span>
+      <textarea id="fv-fb" placeholder="章の概要、メモなど..." style="display:block;margin:0 12px;width:calc(100% - 24px);border:1px solid #2d5a3d66;border-radius:5px;padding:6px 7px;font-size:11px;background:#fff;color:#1e3a28;font-family:inherit;outline:none;resize:none;flex:1;min-height:50px;line-height:1.6"></textarea>
+    </div>
+  </div>
+  <div id="fv-tog" style="position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:300;width:16px;height:40px;background:#e8efe9;border:1.5px solid #2d5a3d;border-right:none;border-radius:5px 0 0 5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#1e3a28;font-weight:700;user-select:none">◀</div>
 </div>
 
 <!-- ===== シーンビュー ===== -->
@@ -290,51 +305,44 @@ function allColors(){return[...DEFAULT_COLORS,...customColors];}
 function getColDef(id){return allColors().find(c=>c.id===id)||DEFAULT_COLORS[0];}
 function hexLuminance(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);return 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);}
 function deriveBar(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return '#'+[r,g,b].map(v=>Math.max(0,Math.round(v*0.85)).toString(16).padStart(2,'0')).join('');}
-function addCustomColor(hex){
-  const id='c'+hex.replace('#','');
-  if(allColors().find(c=>c.id===id))return;
-  customColors.push({id,bg:hex,bar:deriveBar(hex),tx:hexLuminance(hex)>0.4?'#1e3a28':'#f5f2ea'});
-  saveCustomColors();
-  renderColorBtns('fv-color-row','fv');
-  renderColorBtns('sv-color-row','sv');
-  selectColor(id,'fv');selectColor(id,'sv');
-}
-
-// カラーピッカー
+// カラーピッカー（プリセット循環）
 const colorPickerInp=document.getElementById('color-picker-inp');
 let colorPickerTarget='fv';
-document.querySelectorAll('.color-add-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{colorPickerTarget=btn.dataset.view;colorPickerInp.click();});
-});
-colorPickerInp.addEventListener('change',()=>addCustomColor(colorPickerInp.value));
+function cycleColor(view){
+  const cols=allColors();const idx=cols.findIndex(c=>c.id===selCol);
+  const next=cols[(idx+1)%cols.length];
+  selectColor(next.id,view);
+}
 
 // selColは両ビューで共有
 let selCol='yellow';
 function selectColor(id,view){
   selCol=id;
-  document.querySelectorAll('#fv-color-row .cbtn, #sv-color-row .cbtn').forEach(b=>b.classList.toggle('on',b.dataset.c===id));
+  renderColorBtns('fv-color-row','fv');
+  renderColorBtns('sv-color-row','sv');
 }
 function renderColorBtns(rowId,view){
   const row=document.getElementById(rowId);
   row.querySelectorAll('.cbtn').forEach(b=>b.remove());
   const addBtn=row.querySelector('.color-add-btn');
-  allColors().forEach(c=>{
-    const btn=document.createElement('div');
-    btn.className='cbtn'+(selCol===c.id?' on':'');
-    btn.dataset.c=c.id;btn.dataset.view=view;
-    btn.style.background=c.bg;btn.role='button';
-    btn.addEventListener('click',()=>selectColor(c.id,view));
-    row.insertBefore(btn,addBtn);
-  });
+  // 選択中の色だけ1つ表示
+  const c=getColDef(selCol);
+  const btn=document.createElement('div');
+  btn.className='cbtn on';
+  btn.dataset.c=selCol;btn.dataset.view=view;
+  btn.style.background=c.bg;btn.role='button';
+  btn.title='色を変更';
+  btn.addEventListener('click',()=>{colorPickerTarget=view;colorPickerInp.click();});
+  row.insertBefore(btn,addBtn);
 }
-// カラーアドボタンをDOMに追加
+// カラーアドボタン（次の色へ循環）
 ['fv-color-row','sv-color-row'].forEach((rowId,i)=>{
   const row=document.getElementById(rowId);
   const view=i===0?'fv':'sv';
   const addBtn=document.createElement('div');
   addBtn.className='color-add-btn';addBtn.dataset.view=view;
-  addBtn.textContent='+';addBtn.role='button';addBtn.title='色を追加';
-  addBtn.addEventListener('click',()=>{colorPickerTarget=view;colorPickerInp.click();});
+  addBtn.textContent='+';addBtn.role='button';addBtn.title='次の色へ';
+  addBtn.addEventListener('click',()=>cycleColor(view));
   row.appendChild(addBtn);
 });
 
@@ -536,6 +544,8 @@ function fvMakeFolderEl(f){
     fvSelId=f.id;
     document.querySelectorAll('.fw').forEach(w=>w.classList.remove('sel'));
     wrap.classList.add('sel');
+    // サイドバーに内容を表示
+    fvOpenEd(f.id);
     // ダブルクリック判定
     const now=Date.now();
     if(now-lastClick<400){clearTimeout(clickTimer);openSceneView(f.id);return;}
@@ -564,6 +574,32 @@ function fvUpdFolderEl(f){
   const nameEl=tab.querySelector('.ftab-name');if(nameEl)nameEl.textContent=f.name||'無題フォルダ';
   const body=inn.querySelector('.fbody');body.style.color=c.tx;body.textContent=f.desc||'';
 }
+
+let fvSbOpen=true;
+function fvOpenEd(id){
+  const f=FD.find(x=>x.id===id);if(!f)return;
+  const nos=document.getElementById('fv-nos');
+  const edf=document.getElementById('fv-edf');
+  nos.style.display='none';edf.style.display='flex';
+  document.getElementById('fv-ft').value=f.name||'';
+  document.getElementById('fv-fb').value=f.desc||'';
+  if(!fvSbOpen){fvSbOpen=true;document.getElementById('fv-sb').classList.remove('col');document.getElementById('fv-tog').textContent='▶';}
+}
+let fvAutoTimer=null;
+function fvAutoSave(){
+  if(!fvSelId)return;const f=FD.find(x=>x.id===fvSelId);if(!f)return;
+  f.name=document.getElementById('fv-ft').value;
+  f.desc=document.getElementById('fv-fb').value;
+  fvUpdFolderEl(f);
+  clearTimeout(fvAutoTimer);fvAutoTimer=setTimeout(()=>fvScheduleSave(),600);
+}
+document.getElementById('fv-ft').addEventListener('input',fvAutoSave);
+document.getElementById('fv-fb').addEventListener('input',fvAutoSave);
+document.getElementById('fv-tog').addEventListener('click',()=>{
+  fvSbOpen=!fvSbOpen;
+  document.getElementById('fv-sb').classList.toggle('col',!fvSbOpen);
+  document.getElementById('fv-tog').textContent=fvSbOpen?'▶':'◀';
+});
 
 let addFvTimer=0;
 function fvAddFolder(){
@@ -948,11 +984,11 @@ document.addEventListener('touchend',e=>{
   if(el.classList.contains('fdlb')){const fw2=el.closest('.fw');if(fw2)fvRemFolder(parseInt(fw2.id.replace('fw','')));return;}
   const lso=el.closest('.ls-opt');if(lso){e.preventDefault();const dd=lso.closest('.ls-dd');if(dd.id==='fv-ls-dd')fvSetLS(lso.dataset.ls);else svSetLS(lso.dataset.ls);return;}
   const lsb=el.closest('.ls-btn');if(lsb){e.preventDefault();lsb.nextElementSibling?.classList?.toggle('open');return;}
-  const colorAdd=el.closest('.color-add-btn');if(colorAdd){e.preventDefault();colorPickerTarget=colorAdd.dataset.view;colorPickerInp.click();return;}
+  const colorAdd=el.closest('.color-add-btn');if(colorAdd){e.preventDefault();cycleColor(colorAdd.dataset.view);return;}
   const cb=el.closest('.cbtn');if(cb){e.preventDefault();selectColor(cb.dataset.c,view);return;}
   const tbb=el.closest('.tb-b');if(tbb){e.preventDefault();tbb.click();return;}
   const zmb=el.closest('.zm-b');if(zmb){e.preventDefault();zmb.click();return;}
-  const togEl=el.closest('#sv-tog');if(togEl){e.preventDefault();togEl.click();return;}
+  const togEl=el.closest('#sv-tog,#fv-tog');if(togEl){e.preventDefault();togEl.click();return;}
   const backBtn=el.closest('#back-btn');if(backBtn){e.preventDefault();backBtn.click();return;}
   const dlgBtn=el.closest('.dlg-btn');if(dlgBtn){e.preventDefault();dlgBtn.click();return;}
 },{passive:false});
