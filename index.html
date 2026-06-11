@@ -38,7 +38,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
 .col-add-wrap{position:relative}
 .col-dd{display:none;position:absolute;top:24px;left:0;background:#fff;border:1.5px solid #2d5a3d;border-radius:10px;z-index:400;padding:6px;box-shadow:0 4px 12px rgba(0,0,0,.15);flex-wrap:wrap;gap:5px;width:106px}
 .col-dd.open{display:flex}
-.col-dd-item{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;flex-shrink:0}
+.col-dd-item{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;flex-shrink:0;position:relative}
 .col-dd-item:hover,.col-dd-item.on{border-color:#1e3a28}
 
 /* 線スタイル */
@@ -143,7 +143,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
   /* ヒント：左下 */
   .hint{bottom:212px;font-size:8px}
 
-  /* サイドバー：下部固定スライド（canvas-row内から外れてviewにoverlayする） */
+  /* サイドバー：下部固定スライド */
   .sb{
     position:absolute;
     bottom:0; left:0; right:0;
@@ -159,14 +159,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
     opacity:0;
     border-top:none;
   }
-  /* トグルボタン：サイドバー上辺の右端 */
+  /* トグルボタン：サイドバー上辺の右端（引き出しタブ） */
   .sb-tog{
     position:absolute;
-    left:auto; right:8px;
-    top:-16px; transform:none;
-    width:40px; height:16px;
-    border-radius:5px 5px 0 0;
-    border-bottom:none; border-right:1.5px solid #2d5a3d;
+    left:auto !important; right:12px !important;
+    top:-20px !important; transform:none !important;
+    width:48px !important; height:20px !important;
+    border-radius:6px 6px 0 0 !important;
+    border-bottom:none !important;
+    border-right:1.5px solid #2d5a3d !important;
+    font-size:11px !important;
   }
 }
 </style>
@@ -297,6 +299,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;bac
       <div class="sb-tog" id="sv-tog" role="button">◀</div>
       <div class="sb-hd" id="sv-sbh">📝 付箋エディタ</div>
       <div class="sb-nos" id="sv-nos">付箋をクリックして<br>編集を始めましょう</div>
+      <div id="sv-edit-hint" style="font-size:10px;color:#4a7a55;text-align:center;padding:3px 12px;flex-shrink:0"></div>
       <div class="sb-edf" id="sv-edf">
         <span class="fl">題名</span>
         <input class="sb-input" id="sv-ft" type="text" placeholder="シーンタイトル...">
@@ -327,7 +330,7 @@ const COLORS=[
   {id:'purple',bg:'#CECBF6',bar:'#AFA9EC',tx:'#2e2470'},
   {id:'red',   bg:'#FFBDBD',bar:'#FF8E8E',tx:'#7a1010'},
   {id:'cyan',  bg:'#B3EEF0',bar:'#6DDDE0',tx:'#0a4a4c'},
-  {id:'white', bg:'#FAFAFA',bar:'#E8E8E8',tx:'#333333'},
+  {id:'white', bg:'#FAFAFA',bar:'#E0E0E0',tx:'#333333',border:'#bbb'},
   {id:'lime',  bg:'#D4F5A0',bar:'#AADE5A',tx:'#1a4a00'},
 ];
 const getCol=id=>COLORS.find(c=>c.id===id)||COLORS[0];
@@ -350,6 +353,7 @@ let selCol='yellow';
     const it=document.createElement('div');it.className='col-dd-item'+(c.id===selCol?' on':'');
     it.style.background=c.bg;it.dataset.c=c.id;
     it.addEventListener('click',e=>{e.stopPropagation();pickColor(c.id);});
+    if(c.border)it.style.outline='1.5px solid '+c.border;
     dd.appendChild(it);
   });
   wrap.appendChild(addBtn);wrap.appendChild(dd);
@@ -596,10 +600,12 @@ fvBa.addEventListener('mousemove',e=>{
 function initFV(){
   onValue(fbR('folder_view'),snap=>{
     const fb=snap.val(),loc=lsG('scen_fv');
-    if(!fb){if(loc)fvLoad(loc);else fvLoad({folders:[],lines:[],idc:0});fvSync('ok');fvFbLoaded=true;return;}
-    if(loc&&loc.ts&&fb.ts&&loc.ts>fb.ts&&!fvFbLoaded){fvLoad(loc);fvPushFb();}
-    else{fvLoad(fb);lsS('scen_fv',{...fb});fvSync('ok');}
-    fvFbLoaded=true;
+    if(!fvFbLoaded){
+      if(!fb){if(loc)fvLoad(loc);else fvLoad({folders:[],lines:[],idc:0});}
+      else if(loc&&loc.ts&&fb.ts&&loc.ts>fb.ts){fvLoad(loc);fvPushFb();}
+      else{fvLoad(fb);lsS('scen_fv',{...fb});}
+      fvSync('ok');fvFbLoaded=true;
+    }
   },{onlyOnce:false});
 }
 
@@ -701,10 +707,15 @@ function svRem(id){
   if(svSelId===id){svSelId=null;svEdf.classList.remove('vis');svNos.style.display='';}
   svDrawLines();svSched();
 }
+let svLastClick=0,svLastClickId=-1;
 function svOnWMD(e,id){
   if(e.target.classList.contains('dlb'))return;if(e.target.classList.contains('rh'))return;
   if(svConMode){e.preventDefault();svHandleCon(id);return;}if(svEraseMode)return;
-  e.preventDefault();svOpenEd(id);
+  e.preventDefault();
+  const now=Date.now();
+  const isDouble=(now-svLastClick<400&&svLastClickId===id);
+  svLastClick=now;svLastClickId=id;
+  svOpenEd(id, isDouble);
   const s=svST.find(x=>x.id===id);const wrap=document.getElementById('w'+id);
   const ox=e.clientX/svZoom-svPX/svZoom-s.x,oy=e.clientY/svZoom-svPY/svZoom-s.y;
   wrap.style.zIndex=50;
@@ -720,15 +731,26 @@ function svOnRMD(e,id){
   const onU=()=>{svSched();window.removeEventListener('mousemove',onM);window.removeEventListener('mouseup',onU);};
   window.addEventListener('mousemove',onM);window.addEventListener('mouseup',onU);
 }
-function svOpenEd(id){
+function svOpenEd(id, editMode){
   const s=svST.find(x=>x.id===id);if(!s)return;
   svSelId=id;document.querySelectorAll('.sw').forEach(w=>w.classList.remove('sel'));document.getElementById('w'+id)?.classList.add('sel');
   document.getElementById('sv-ft').value=s.title||'';document.getElementById('sv-fs').value=s.scene||'';document.getElementById('sv-fb').value=s.body||'';
   svNos.style.display='none';svEdf.classList.add('vis');
+  // 表示モード/編集モード切り替え
+  const editable=editMode!==false;
+  ['sv-ft','sv-fs','sv-fb'].forEach(fid=>{
+    const el=document.getElementById(fid);
+    el.readOnly=!editable;
+    el.style.background=editable?'#fff':'#f5f2ea';
+    el.style.cursor=editable?'text':'default';
+  });
+  const hint=document.getElementById('sv-edit-hint');
+  if(hint)hint.textContent=editable?'':'ダブルタップで編集';
   if(!svSbOpen){svSbOpen=true;svSb.classList.remove('col');svTog.textContent='▶';}
 }
 function svAutoSave(){
   if(!svSelId)return;const s=svST.find(x=>x.id===svSelId);if(!s)return;
+  if(document.getElementById('sv-ft').readOnly)return; // 表示モード中は保存しない
   s.title=document.getElementById('sv-ft').value;s.scene=document.getElementById('sv-fs').value;s.body=document.getElementById('sv-fb').value;
   svUpdEl(s);clearTimeout(svAutoTmr);svAutoTmr=setTimeout(svSched,600);
 }
@@ -788,10 +810,14 @@ function openSceneView(fid){
   if(svUnsub){svUnsub();svUnsub=null;}svFbLoaded=false;
   svUnsub=onValue(fbR('scenes/'+fid),snap=>{
     const fb=snap.val(),loc=lsG('scen_sv_'+fid);
-    if(!fb){if(loc)svLoad(loc);else svLoad({stickies:[],lines:[],idc:0});svSync('ok');svFbLoaded=true;return;}
-    if(loc&&loc.ts&&fb.ts&&loc.ts>fb.ts&&!svFbLoaded){svLoad(loc);svPushFb();}
-    else{svLoad(fb);lsS('scen_sv_'+fid,{...fb});svSync('ok');}
-    svFbLoaded=true;
+    // 初回ロードのみDOMを再構築。以降はリモート変更を無視（自分の保存に反応しない）
+    if(!svFbLoaded){
+      if(!fb){if(loc)svLoad(loc);else svLoad({stickies:[],lines:[],idc:0});}
+      else if(loc&&loc.ts&&fb.ts&&loc.ts>fb.ts){svLoad(loc);svPushFb();}
+      else{svLoad(fb);lsS('scen_sv_'+fid,{...fb});}
+      svSync('ok');svFbLoaded=true;
+    }
+    // 2回目以降: 自分の保存トリガーなので無視（選択状態を維持）
   });
   svApply();
 }
@@ -854,7 +880,16 @@ document.addEventListener('touchend',e=>{
       const now=Date.now();const el2=document.getElementById('fw'+did);
       if(el2&&now-(el2._lt||0)<400){openSceneView(did);}
       else{if(el2)el2._lt=now;fvSelId=did;document.querySelectorAll('.fw').forEach(w=>w.classList.remove('sel'));document.getElementById('fw'+did)?.classList.add('sel');fvOpenEd(did);if(fvConMode)fvHandleCon(did);}
-    }else{if(svConMode)svHandleCon(did);else svOpenEd(did);}
+    }else{
+      if(svConMode){svHandleCon(did);}
+      else{
+        const now2=Date.now();
+        const el3=document.getElementById('w'+did);
+        const isDouble2=(now2-(el3?el3._lt2||0:0)<400);
+        if(el3)el3._lt2=now2;
+        svOpenEd(did, isDouble2);
+      }
+    }
     return;
   }
   const moved=Math.hypot(t.clientX-sp.x,t.clientY-sp.y)>8;if(moved)return;
