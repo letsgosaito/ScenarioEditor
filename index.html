@@ -37,7 +37,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 .dot.err{background:#e05030}
 .dot.sync{background:#f0a030;animation:blink .6s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-#sb{width:242px;flex-shrink:0;background:#f9f7f1;border-left:1.5px solid #2d5a3d;display:flex;flex-direction:column;z-index:200;transition:width .2s,opacity .18s;overflow:hidden}
+#sb{width:40%;flex-shrink:0;background:#f9f7f1;border-left:1.5px solid #2d5a3d;display:flex;flex-direction:column;z-index:200;transition:width .2s,opacity .18s;overflow:hidden}
 #sb.col{width:0;opacity:0;border-left:none}
 #tog{position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:300;width:16px;height:40px;background:#e8efe9;border:1.5px solid #2d5a3d;border-right:none;border-radius:5px 0 0 5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#1e3a28;font-weight:700;user-select:none}
 #sbh{padding:8px 12px 6px;border-bottom:1px solid #2d5a3d44;font-size:11px;color:#1e3a28;font-weight:700;flex-shrink:0}
@@ -74,10 +74,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 #dlg-no{background:#fff;color:#1e3a28}
 #hint{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);font-size:9px;color:#1e3a28;background:rgba(232,239,233,.95);padding:2px 9px;border-radius:16px;border:1px solid #2d5a3d44;white-space:nowrap;pointer-events:none;font-weight:500}
 @media(max-width:600px){
-  #sb{width:100%;position:absolute;bottom:0;left:0;height:300px;border-left:none;border-top:1.5px solid #2d5a3d;z-index:300}
+  /* サイドバー：下から出る */
+  #sb{width:100%;position:absolute;bottom:0;left:0;height:320px;border-left:none;border-top:1.5px solid #2d5a3d;z-index:300}
   #sb.col{width:100%;height:0;opacity:0;border-top:none}
   #tog{top:auto;bottom:100%;right:8px;transform:none;border-radius:5px 5px 0 0;border-bottom:none;border-right:1.5px solid #2d5a3d;width:40px;height:16px}
-  #sync-dot{font-size:9px;padding:2px 6px}
+  #sync-dot{font-size:9px;padding:2px 6px;top:56px;right:4px}
+  /* ツールバー：2段レイアウト */
+  #tb{flex-wrap:wrap;top:4px;left:4px;right:4px;transform:none;width:calc(100% - 8px);border-radius:12px;gap:6px;padding:6px 10px;justify-content:center}
+  #tb .sp{display:none}
+  .tb-b{padding:5px 12px;font-size:13px}
+  .cbtn{width:22px;height:22px}
+  #ls-btn{height:28px;padding:3px 8px}
+  /* ズームボタン：右下 */
+  #zw{bottom:330px}
+  .zm-b{width:32px;height:32px;font-size:14px}
+  #hint{bottom:328px;font-size:8px}
 }
 </style>
 </head>
@@ -188,9 +199,53 @@ document.getElementById('bzo').addEventListener('click',()=>setZoom(zoom-0.1));
 document.getElementById('bzr').addEventListener('click',()=>{zoom=1;panX=0;panY=0;applyT();});
 ba.addEventListener('wheel',e=>{e.preventDefault();if(e.ctrlKey){setZoom(zoom*(e.deltaY<0?1.04:0.96),e.clientX,e.clientY);}else{panX-=e.deltaX;panY-=e.deltaY;applyT();}},{passive:false});
 let touches={},lastDist=0;
-ba.addEventListener('touchstart',e=>{e.preventDefault();Array.from(e.changedTouches).forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});},{passive:false});
-ba.addEventListener('touchmove',e=>{e.preventDefault();if(e.touches.length===2){const t0=e.touches[0],t1=e.touches[1];const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);const cx=(t0.clientX+t1.clientX)/2,cy=(t0.clientY+t1.clientY)/2;if(lastDist>0)setZoom(zoom*(dist/lastDist),cx,cy);lastDist=dist;}else if(e.touches.length===1){const t=e.touches[0];const prev=touches[t.identifier];if(prev){panX+=t.clientX-prev.x;panY+=t.clientY-prev.y;applyT();}touches[t.identifier]={x:t.clientX,y:t.clientY};}},{passive:false});
+// タッチ操作：背景のみパン/ズーム、UIボタンはタップを通す
+const BG_TAGS=new Set(['CANVAS','svg','#brd']);
+function isBgTouch(t){const el=document.elementFromPoint(t.clientX,t.clientY);if(!el)return true;if(el===ba||el===brd||el.id==='gcvs'||el.id==='svgl'||el.tagName==='svg'||el.tagName==='line'||el.tagName==='g')return true;return false;}
+ba.addEventListener('touchstart',e=>{
+  // 2本指は常にズーム用に捕捉
+  if(e.touches.length>=2){e.preventDefault();}
+  Array.from(e.changedTouches).forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});
+},{passive:false});
+ba.addEventListener('touchmove',e=>{
+  if(e.touches.length===2){
+    e.preventDefault();
+    const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    const cx=(t0.clientX+t1.clientX)/2,cy=(t0.clientY+t1.clientY)/2;
+    if(lastDist>0)setZoom(zoom*(dist/lastDist),cx,cy);
+    lastDist=dist;
+  }else if(e.touches.length===1){
+    const t=e.touches[0];
+    if(isBgTouch(t)){
+      e.preventDefault();
+      const prev=touches[t.identifier];
+      if(prev){panX+=t.clientX-prev.x;panY+=t.clientY-prev.y;applyT();}
+      touches[t.identifier]={x:t.clientX,y:t.clientY};
+    }
+  }
+},{passive:false});
 ba.addEventListener('touchend',e=>{Array.from(e.changedTouches).forEach(t=>delete touches[t.identifier]);if(Object.keys(touches).length<2)lastDist=0;},{passive:false});
+
+// スマホで付箋タップ → 選択 & エディタを開く
+ba.addEventListener('touchend',e=>{
+  if(e.changedTouches.length!==1||e.touches.length!==0)return;
+  const t=e.changedTouches[0];
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  if(!el)return;
+  // 付箋の削除ボタン
+  if(el.classList.contains('dlb')){const id=parseInt(el.closest('.sw')?.id?.replace('w',''));if(id)remS(id);return;}
+  // 付箋本体タップ → 選択
+  const sw=el.closest('.sw');
+  if(sw){const id=parseInt(sw.id.replace('w',''));if(id){if(conMode){handleCon(id);}else{openEd(id);}}return;}
+  // ツールバーボタン
+  const tbb=el.closest('.tb-b');if(tbb){tbb.click();return;}
+  const cb=el.closest('.cbtn');if(cb){cb.click();return;}
+  const lsb=el.closest('#ls-btn');if(lsb){lsb.click();return;}
+  const lso=el.closest('.ls-opt');if(lso){lso.click();return;}
+  const zmb=el.closest('.zm-b');if(zmb){zmb.click();return;}
+  const tog=el.closest('#tog');if(tog){tog.click();return;}
+},{passive:true});
 function startPan(e){ba.style.cursor='grabbing';const sx=e.clientX-panX,sy=e.clientY-panY;const onMove=ev=>{panX=ev.clientX-sx;panY=ev.clientY-sy;applyT();};const onUp=()=>{ba.style.cursor='default';window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp);};window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);}
 ba.addEventListener('mousedown',e=>{const t=e.target;if((t===ba||t===document.getElementById('gcvs')||t===brd)&&!conMode&&!eraseMode){e.preventDefault();startPan(e);}});
 window.addEventListener('keydown',e=>{const tag=document.activeElement.tagName;if(tag==='INPUT'||tag==='TEXTAREA')return;if(e.shiftKey&&(e.key==='+'||e.key==='=')){e.preventDefault();addS();}else if(e.shiftKey&&(e.key==='L'||e.key==='l')){e.preventDefault();toggleCon();}});
