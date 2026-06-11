@@ -104,7 +104,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
         <div class="cbtn" data-c="blue" style="background:#B5D4F4" role="button" title="青"></div>
         <div class="cbtn" data-c="pink" style="background:#F4C0D1" role="button" title="ピンク"></div>
         <div class="cbtn" data-c="green" style="background:#C0DD97" role="button" title="緑"></div>
-        <div class="cbtn" data-c="coral" style="background:#F5C4B3" role="button" title="橙"></div>
         <div class="cbtn" data-c="purple" style="background:#CECBF6" role="button" title="紫"></div>
       </div>
       <div class="sp"></div>
@@ -198,16 +197,49 @@ document.getElementById('bzi').addEventListener('click',()=>setZoom(zoom+0.1));
 document.getElementById('bzo').addEventListener('click',()=>setZoom(zoom-0.1));
 document.getElementById('bzr').addEventListener('click',()=>{zoom=1;panX=0;panY=0;applyT();});
 ba.addEventListener('wheel',e=>{e.preventDefault();if(e.ctrlKey){setZoom(zoom*(e.deltaY<0?1.04:0.96),e.clientX,e.clientY);}else{panX-=e.deltaX;panY-=e.deltaY;applyT();}},{passive:false});
+// ===== タッチ操作 =====
 let touches={},lastDist=0;
-// タッチ操作：背景のみパン/ズーム、UIボタンはタップを通す
-const BG_TAGS=new Set(['CANVAS','svg','#brd']);
-function isBgTouch(t){const el=document.elementFromPoint(t.clientX,t.clientY);if(!el)return true;if(el===ba||el===brd||el.id==='gcvs'||el.id==='svgl'||el.tagName==='svg'||el.tagName==='line'||el.tagName==='g')return true;return false;}
-ba.addEventListener('touchstart',e=>{
-  // 2本指は常にズーム用に捕捉
-  if(e.touches.length>=2){e.preventDefault();}
-  Array.from(e.changedTouches).forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});
+// タッチ開始座標を記録（ドラッグ判定用）
+let touchStartPos={};
+// 付箋ドラッグ用
+let touchDragId=null,touchDragOffX=0,touchDragOffY=0,touchDragMoved=false;
+
+function isBgEl(el){
+  if(!el)return true;
+  return el===ba||el===brd||el.id==='gcvs'||el.id==='svgl'||el.tagName==='svg'||el.tagName==='line'||el.tagName==='g';
+}
+
+document.addEventListener('touchstart',e=>{
+  // 2本指：ズーム
+  if(e.touches.length>=2){
+    e.preventDefault();
+    touchDragId=null;
+    Array.from(e.changedTouches).forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});
+    return;
+  }
+  const t=e.changedTouches[0];
+  touches[t.identifier]={x:t.clientX,y:t.clientY};
+  touchStartPos[t.identifier]={x:t.clientX,y:t.clientY};
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+
+  // 付箋上でのタッチ開始：ドラッグ準備
+  const sw=el?.closest('.sw');
+  if(sw&&!conMode&&!eraseMode){
+    const id=parseInt(sw.id.replace('w',''));
+    const s=ST.find(x=>x.id===id);
+    if(s){
+      touchDragId=id;
+      touchDragOffX=t.clientX/zoom-panX/zoom-s.x;
+      touchDragOffY=t.clientY/zoom-panY/zoom-s.y;
+      touchDragMoved=false;
+    }
+  }else{
+    touchDragId=null;
+  }
 },{passive:false});
-ba.addEventListener('touchmove',e=>{
+
+document.addEventListener('touchmove',e=>{
+  // 2本指ピンチズーム
   if(e.touches.length===2){
     e.preventDefault();
     const t0=e.touches[0],t1=e.touches[1];
@@ -215,37 +247,88 @@ ba.addEventListener('touchmove',e=>{
     const cx=(t0.clientX+t1.clientX)/2,cy=(t0.clientY+t1.clientY)/2;
     if(lastDist>0)setZoom(zoom*(dist/lastDist),cx,cy);
     lastDist=dist;
-  }else if(e.touches.length===1){
-    const t=e.touches[0];
-    if(isBgTouch(t)){
-      e.preventDefault();
-      const prev=touches[t.identifier];
-      if(prev){panX+=t.clientX-prev.x;panY+=t.clientY-prev.y;applyT();}
-      touches[t.identifier]={x:t.clientX,y:t.clientY};
+    return;
+  }
+  if(e.touches.length!==1)return;
+  const t=e.touches[0];
+  const prev=touches[t.identifier];
+  if(!prev)return;
+  const dx=t.clientX-prev.x,dy=t.clientY-prev.y;
+  touches[t.identifier]={x:t.clientX,y:t.clientY};
+
+  // 付箋ドラッグ
+  if(touchDragId!==null){
+    e.preventDefault();
+    if(Math.abs(t.clientX-(touchStartPos[t.identifier]?.x||t.clientX))>4||Math.abs(t.clientY-(touchStartPos[t.identifier]?.y||t.clientY))>4){
+      touchDragMoved=true;
     }
+    const s=ST.find(x=>x.id===touchDragId);
+    const wrap=document.getElementById('w'+touchDragId);
+    if(s&&wrap){
+      s.x=t.clientX/zoom-panX/zoom-touchDragOffX;
+      s.y=t.clientY/zoom-panY/zoom-touchDragOffY;
+      wrap.style.left=s.x+'px';wrap.style.top=s.y+'px';
+      renderLines();
+    }
+    return;
+  }
+  // 背景パン
+  const el=document.elementFromPoint(t.clientX,t.clientY);
+  if(isBgEl(el)){
+    e.preventDefault();
+    panX+=dx;panY+=dy;applyT();
   }
 },{passive:false});
-ba.addEventListener('touchend',e=>{Array.from(e.changedTouches).forEach(t=>delete touches[t.identifier]);if(Object.keys(touches).length<2)lastDist=0;},{passive:false});
 
-// スマホで付箋タップ → 選択 & エディタを開く
-ba.addEventListener('touchend',e=>{
+document.addEventListener('touchend',e=>{
+  Array.from(e.changedTouches).forEach(t=>delete touches[t.identifier]);
+  if(Object.keys(touches).length<2)lastDist=0;
+
   if(e.changedTouches.length!==1||e.touches.length!==0)return;
   const t=e.changedTouches[0];
+  const startPos=touchStartPos[t.identifier]||{x:t.clientX,y:t.clientY};
+  delete touchStartPos[t.identifier];
+
+  // 付箋ドラッグ終了
+  if(touchDragId!==null){
+    if(touchDragMoved){scheduleSave();}
+    const dragId=touchDragId;
+    touchDragId=null;
+    if(touchDragMoved)return; // ドラッグだったらタップ処理しない
+    // ドラッグしていない＝タップ
+    if(conMode){handleCon(dragId);}else{openEd(dragId);}
+    return;
+  }
+
+  // タップ判定（5px以内の移動）
+  const moved=Math.hypot(t.clientX-startPos.x,t.clientY-startPos.y)>8;
+  if(moved)return;
+
   const el=document.elementFromPoint(t.clientX,t.clientY);
   if(!el)return;
-  // 付箋の削除ボタン
-  if(el.classList.contains('dlb')){const id=parseInt(el.closest('.sw')?.id?.replace('w',''));if(id)remS(id);return;}
-  // 付箋本体タップ → 選択
-  const sw=el.closest('.sw');
-  if(sw){const id=parseInt(sw.id.replace('w',''));if(id){if(conMode){handleCon(id);}else{openEd(id);}}return;}
-  // ツールバーボタン
-  const tbb=el.closest('.tb-b');if(tbb){tbb.click();return;}
-  const cb=el.closest('.cbtn');if(cb){cb.click();return;}
-  const lsb=el.closest('#ls-btn');if(lsb){lsb.click();return;}
-  const lso=el.closest('.ls-opt');if(lso){lso.click();return;}
-  const zmb=el.closest('.zm-b');if(zmb){zmb.click();return;}
-  const tog=el.closest('#tog');if(tog){tog.click();return;}
-},{passive:true});
+
+  // 削除ボタン
+  if(el.classList.contains('dlb')){
+    const sw2=el.closest('.sw');if(sw2){remS(parseInt(sw2.id.replace('w','')));}return;
+  }
+  // ツールバー系（touchendで直接実行、clickは呼ばない）
+  const lso=el.closest('.ls-opt');
+  if(lso){e.preventDefault();setLS(lso.dataset.ls);return;}
+  const lsb=el.closest('#ls-btn');
+  if(lsb){e.preventDefault();lsDropdown.classList.toggle('open');return;}
+  const tbb=el.closest('.tb-b');
+  if(tbb){e.preventDefault();tbb.click();return;}
+  const cb=el.closest('.cbtn');
+  if(cb){e.preventDefault();cb.click();return;}
+  const zmb=el.closest('.zm-b');
+  if(zmb){e.preventDefault();zmb.click();return;}
+  const togEl=el.closest('#tog');
+  if(togEl){e.preventDefault();togEl.click();return;}
+  const sbBtn=el.closest('.sb-btn');
+  if(sbBtn){e.preventDefault();sbBtn.click();return;}
+  const dlgBtn=el.closest('.dlg-btn');
+  if(dlgBtn){e.preventDefault();dlgBtn.click();return;}
+},{passive:false});
 function startPan(e){ba.style.cursor='grabbing';const sx=e.clientX-panX,sy=e.clientY-panY;const onMove=ev=>{panX=ev.clientX-sx;panY=ev.clientY-sy;applyT();};const onUp=()=>{ba.style.cursor='default';window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp);};window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);}
 ba.addEventListener('mousedown',e=>{const t=e.target;if((t===ba||t===document.getElementById('gcvs')||t===brd)&&!conMode&&!eraseMode){e.preventDefault();startPan(e);}});
 window.addEventListener('keydown',e=>{const tag=document.activeElement.tagName;if(tag==='INPUT'||tag==='TEXTAREA')return;if(e.shiftKey&&(e.key==='+'||e.key==='=')){e.preventDefault();addS();}else if(e.shiftKey&&(e.key==='L'||e.key==='l')){e.preventDefault();toggleCon();}});
@@ -261,14 +344,35 @@ function openEd(id){const s=ST.find(x=>x.id===id);if(!s)return;selId=id;document
 function applyEd(){if(!selId)return;const s=ST.find(x=>x.id===selId);if(!s)return;s.title=document.getElementById('ft').value;s.scene=document.getElementById('fs').value;s.body=document.getElementById('fb').value;updEl(s);scheduleSave();}
 function updEl(s){const inn=document.getElementById('i'+s.id);if(!inn)return;const c=COL[s.color];inn.style.background=c.bg;const bar=inn.querySelector('.stb');bar.style.background=c.bar;bar.style.color=c.tx;bar.querySelector('span').textContent=s.title||'（無題）';const sc=inn.querySelector('.ssc');sc.style.color=c.tx;sc.textContent=s.scene||'';sc.style.display=s.scene?'block':'none';const bd=inn.querySelector('.sbd');bd.style.color=c.tx;bd.textContent=s.body||'';}
 function makeEl(s){const wrap=document.createElement('div');wrap.className='sw';wrap.id='w'+s.id;wrap.style.cssText=`left:${s.x}px;top:${s.y}px;width:${s.w}px;height:${s.h}px`;const c=COL[s.color];const inn=document.createElement('div');inn.className='si';inn.id='i'+s.id;inn.style.background=c.bg;const bar=document.createElement('div');bar.className='stb';bar.style.cssText=`background:${c.bar};color:${c.tx}`;const tsp=document.createElement('span');tsp.textContent=s.title||'（無題）';const db=document.createElement('div');db.className='dlb';db.innerHTML='×';db.style.color=c.tx;db.style.cursor='pointer';db.addEventListener('click',e=>{e.stopPropagation();remS(s.id);});bar.appendChild(tsp);bar.appendChild(db);const sc=document.createElement('div');sc.className='ssc';sc.style.color=c.tx;sc.textContent=s.scene||'';sc.style.display=s.scene?'block':'none';const bd=document.createElement('div');bd.className='sbd';bd.style.color=c.tx;bd.textContent=s.body||'';const rh=document.createElement('div');rh.className='rh';inn.appendChild(bar);inn.appendChild(sc);inn.appendChild(bd);inn.appendChild(rh);wrap.appendChild(inn);brd.appendChild(wrap);wrap.addEventListener('mousedown',e=>onWMD(e,s.id));rh.addEventListener('mousedown',e=>onRMD(e,s.id));}
-function addS(){const r=ba.getBoundingClientRect();const bx=(r.width/2-panX)/zoom+Math.random()*50-25,by=(r.height/2-panY)/zoom+Math.random()*40-20;const s={id:++idc,x:bx,y:by,w:150,h:100,title:'',scene:'',body:'',color:selCol};ST.push(s);makeEl(s);openEd(s.id);scheduleSave();}
+let addSTimer=0;
+function addS(){
+  const now=Date.now();if(now-addSTimer<400)return;addSTimer=now;
+  const r=ba.getBoundingClientRect();
+  const bx=(r.width/2-panX)/zoom+Math.random()*50-25,by=(r.height/2-panY)/zoom+Math.random()*40-20;
+  const s={id:++idc,x:bx,y:by,w:150,h:100,title:'',scene:'',body:'',color:selCol};
+  ST.push(s);makeEl(s);openEd(s.id);scheduleSave();
+}
 function remS(id){ST=ST.filter(s=>s.id!==id);LN=LN.filter(l=>l.f!==id&&l.t!==id);document.getElementById('w'+id)?.remove();if(selId===id){selId=null;edf.classList.remove('vis');nos.style.display='';}renderLines();scheduleSave();}
 function onWMD(e,id){if(e.target.classList.contains('dlb'))return;if(e.target.classList.contains('rh'))return;if(conMode){e.preventDefault();handleCon(id);return;}if(eraseMode)return;e.preventDefault();openEd(id);const s=ST.find(x=>x.id===id);const wrap=document.getElementById('w'+id);const offX=e.clientX/zoom-panX/zoom-s.x,offY=e.clientY/zoom-panY/zoom-s.y;wrap.style.zIndex=50;const onMove=ev=>{s.x=ev.clientX/zoom-panX/zoom-offX;s.y=ev.clientY/zoom-panY/zoom-offY;wrap.style.left=s.x+'px';wrap.style.top=s.y+'px';renderLines();};const onUp=()=>{wrap.style.zIndex=10;scheduleSave();window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp);};window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);}
 function onRMD(e,id){e.stopPropagation();e.preventDefault();const s=ST.find(x=>x.id===id);const wrap=document.getElementById('w'+id);const sx=e.clientX,sy=e.clientY,sw=s.w,sh=s.h;const onMove=ev=>{s.w=Math.max(110,sw+(ev.clientX-sx)/zoom);s.h=Math.max(70,sh+(ev.clientY-sy)/zoom);wrap.style.width=s.w+'px';wrap.style.height=s.h+'px';renderLines();};const onUp=()=>{scheduleSave();window.removeEventListener('mousemove',onMove);window.removeEventListener('mouseup',onUp);};window.addEventListener('mousemove',onMove);window.addEventListener('mouseup',onUp);}
 function ctr(id){const s=ST.find(x=>x.id===id);if(!s)return null;return{x:s.x*zoom+panX+s.w*zoom/2,y:s.y*zoom+panY+s.h*zoom/2};}
 function lAttr(ls){if(ls==='dashed')return{da:'7,5',w:'1.5',mk:'arr'};if(ls==='thick')return{da:'none',w:'3.5',mk:'arr2'};return{da:'none',w:'1.5',mk:'arr'};}
 function renderLines(){svgLn.innerHTML='';LN.forEach((l,idx)=>{const a=ctr(l.f),b=ctr(l.t);if(!a||!b)return;const at=lAttr(l.s||'solid');const g=document.createElementNS('http://www.w3.org/2000/svg','g');const vis=document.createElementNS('http://www.w3.org/2000/svg','line');vis.setAttribute('x1',a.x);vis.setAttribute('y1',a.y);vis.setAttribute('x2',b.x);vis.setAttribute('y2',b.y);vis.setAttribute('stroke','#2d5a3d');vis.setAttribute('stroke-width',at.w);if(at.da!=='none')vis.setAttribute('stroke-dasharray',at.da);vis.setAttribute('marker-end',`url(#${at.mk})`);const hit=document.createElementNS('http://www.w3.org/2000/svg','line');hit.setAttribute('x1',a.x);hit.setAttribute('y1',a.y);hit.setAttribute('x2',b.x);hit.setAttribute('y2',b.y);hit.setAttribute('stroke','transparent');hit.setAttribute('stroke-width','12');hit.style.cursor='pointer';hit.addEventListener('mouseenter',()=>{if(eraseMode)vis.setAttribute('stroke','#e05030');});hit.addEventListener('mouseleave',()=>{if(eraseMode)vis.setAttribute('stroke','#2d5a3d');});hit.addEventListener('click',()=>{if(eraseMode){LN.splice(idx,1);renderLines();scheduleSave();}});g.appendChild(vis);g.appendChild(hit);svgLn.appendChild(g);});}
-function handleCon(id){if(!conFrom){conFrom=id;document.getElementById('w'+id)?.classList.add('sel');}else if(conFrom===id){document.getElementById('w'+id)?.classList.remove('sel');conFrom=null;}else{if(!LN.find(l=>(l.f===conFrom&&l.t===id)||(l.f===id&&l.t===conFrom)))LN.push({f:conFrom,t:id,s:curLS});document.getElementById('w'+conFrom)?.classList.remove('sel');conFrom=null;renderLines();scheduleSave();}}
+function handleCon(id){
+  if(!conFrom){conFrom=id;document.getElementById('w'+id)?.classList.add('sel');}
+  else if(conFrom===id){document.getElementById('w'+id)?.classList.remove('sel');conFrom=null;}
+  else{
+    const existing=LN.findIndex(l=>(l.f===conFrom&&l.t===id)||(l.f===id&&l.t===conFrom));
+    if(existing>=0){
+      // 同じペアが存在: 線種が違えば置き換え、同じなら削除しない
+      if(LN[existing].s!==curLS){LN[existing].s=curLS;}
+    }else{
+      LN.push({f:conFrom,t:id,s:curLS});
+    }
+    document.getElementById('w'+conFrom)?.classList.remove('sel');
+    conFrom=null;renderLines();scheduleSave();
+  }
+}
 document.getElementById('badd').addEventListener('click',addS);
 document.getElementById('bap').addEventListener('click',applyEd);
 document.getElementById('bca').addEventListener('click',()=>{document.querySelectorAll('.sw').forEach(w=>w.classList.remove('sel'));selId=null;edf.classList.remove('vis');nos.style.display='';});
